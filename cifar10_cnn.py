@@ -1,4 +1,5 @@
 
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -17,20 +18,12 @@ DEPTH = 3
 NUM_CLASSES = 10
 NUM_DATA_BATCHES = 5
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 10000 * NUM_DATA_BATCHES
-BATCH_SIZE = 128
+BATCH_SIZE = 40
 INPUT_TENSOR_NAME = 'inputs_input'  # needs to match the name of the first layer + "_input"
 
 
 def keras_model_fn(hyperparameters):
-    """keras_model_fn receives hyperparameters from the training job and returns a compiled keras model.
-    The model will be transformed into a TensorFlow Estimator before training and it will be saved in a 
-    TensorFlow Serving SavedModel at the end of training.
-
-    Args:
-        hyperparameters: The hyperparameters passed to the SageMaker TrainingJob that runs your TensorFlow 
-                         training script.
-    Returns: A compiled Keras model
-    """
+    
     model = Sequential()
 
     model.add(Conv2D(32, (3, 3), padding='same', name='inputs', input_shape=(HEIGHT, WIDTH, DEPTH)))
@@ -46,6 +39,14 @@ def keras_model_fn(hyperparameters):
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
+    
+    model.add(Conv2D(128, (3, 3), padding='same'))
+    model.add(Activation('relu'))
+    model.add(Conv2D(128, (3, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
+    
 
     model.add(Flatten())
     model.add(Dense(512))
@@ -64,16 +65,7 @@ def keras_model_fn(hyperparameters):
 
 
 def serving_input_fn(hyperparameters):
-    """This function defines the placeholders that will be added to the model during serving.
-    The function returns a tf.estimator.export.ServingInputReceiver object, which packages the 
-    placeholders and the resulting feature Tensors together.
-    For more information: https://github.com/aws/sagemaker-python-sdk/blob/master/src/sagemaker/tensorflow/README.rst#creating-a-serving_input_fn
-    
-    Args:
-        hyperparameters: The hyperparameters passed to SageMaker TrainingJob that runs your TensorFlow 
-                        training script.
-    Returns: ServingInputReceiver or fn that returns a ServingInputReceiver
-    """
+   
     
     # Notice that the input placeholder has the same input shape as the Keras model input
     tensor = tf.placeholder(tf.float32, shape=[None, HEIGHT, WIDTH, DEPTH])
@@ -84,23 +76,17 @@ def serving_input_fn(hyperparameters):
 
 
 def train_input_fn(training_dir, hyperparameters):
-    """Returns input function that would feed the model during training"""
     return _input(tf.estimator.ModeKeys.TRAIN,
                     batch_size=BATCH_SIZE, data_dir=training_dir)
 
 
 def eval_input_fn(training_dir, hyperparameters):
-    """Returns input function that would feed the model during evaluation"""
     return _input(tf.estimator.ModeKeys.EVAL,
                     batch_size=BATCH_SIZE, data_dir=training_dir)
 
 
 def _input(mode, batch_size, data_dir):
-    """Uses the tf.data input pipeline for CIFAR-10 dataset.
-    Args:
-        mode: Standard names for model modes (tf.estimators.ModeKeys).
-        batch_size: The number of samples per batch of input requested.
-    """
+   
     dataset = _record_dataset(_filenames(mode, data_dir))
 
     # For training repeat forever.
